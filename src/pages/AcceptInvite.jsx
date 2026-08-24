@@ -9,6 +9,8 @@ export function AcceptInvite({ setActiveView }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [userRole, setUserRole] = useState('');
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -35,10 +37,12 @@ export function AcceptInvite({ setActiveView }) {
     setLoading(true);
 
     try {
-      await authApi.acceptInvite({
+      const response = await authApi.acceptInvite({
         token: token.trim(),
         newPassword: password,
       });
+      setUserRole(response.role || 'UNKNOWN');
+      setIsAdmin(response.isAdmin || false);
       setSuccess(true);
     } catch (err) {
       setError(
@@ -47,6 +51,14 @@ export function AcceptInvite({ setActiveView }) {
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleProceedToLogin = () => {
+    if (isAdmin) {
+      setActiveView('login');
+    } else {
+      window.location.href = 'http://localhost:3001/login';
     }
   };
 
@@ -84,7 +96,7 @@ export function AcceptInvite({ setActiveView }) {
             <KeyRound size={22} color="#fff" />
           </div>
           <h2 style={{ fontSize: '22px', fontWeight: 700, letterSpacing: '-0.3px' }}>
-            Activate CPMS Account
+            Activate YuktiSetu Account
           </h2>
           <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '4px' }}>
             Set your permanent security credentials to complete onboarding.
@@ -121,15 +133,17 @@ export function AcceptInvite({ setActiveView }) {
               }}
             >
               Your security password has been configured and your status is now{' '}
-              <span className="badge badge-active">ACTIVE</span>. You may now log in to the portal.
+              <span className="badge badge-active">ACTIVE</span>.
+              <br />
+              Role: <strong>{userRole}</strong>
             </p>
 
             <button
               className="btn btn-primary"
               style={{ width: '100%' }}
-              onClick={() => setActiveView('login')}
+              onClick={handleProceedToLogin}
             >
-              Proceed to Sign In
+              Proceed to {isAdmin ? 'Admin Portal Sign In' : 'Student Portal Sign In'}
             </button>
           </div>
         ) : (

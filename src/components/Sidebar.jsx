@@ -22,9 +22,11 @@ export function Sidebar({ activeView, setActiveView }) {
     <aside className="sidebar">
       {/* Brand Header */}
       <div className="sidebar-brand">
-        <div className="brand-icon">CP</div>
+        <div className="brand-icon" style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: '18px', letterSpacing: '-0.5px' }}>
+          Y
+        </div>
         <div className="brand-info">
-          <span className="brand-title">PCET · CPMS</span>
+          <span className="brand-title">YuktiSetu</span>
           <span className="brand-sub">Admin Portal</span>
         </div>
       </div>

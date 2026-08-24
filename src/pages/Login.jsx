@@ -32,7 +32,7 @@ export function Login({ setActiveView }) {
         alignItems: 'center',
         justifyContent: 'center',
         padding: '24px',
-        background: 'radial-gradient(ellipse at top, rgba(212,155,75,0.08), transparent 70%), var(--bg-app)',
+        background: 'radial-gradient(ellipse at top, rgba(30,58,138,0.08), transparent 70%), var(--bg-app)',
       }}
     >
       <div
@@ -48,15 +48,15 @@ export function Login({ setActiveView }) {
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>
           <div
             className="brand-icon"
-            style={{ width: '48px', height: '48px', margin: '0 auto 12px', fontSize: '20px' }}
+            style={{ width: '48px', height: '48px', margin: '0 auto 12px', fontSize: '20px', borderRadius: '12px', background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, letterSpacing: '-0.5px' }}
           >
-            CP
+            Y
           </div>
           <h2 style={{ fontSize: '22px', fontWeight: 700, letterSpacing: '-0.3px' }}>
-            CPMS Admin Portal
+            YuktiSetu Admin Portal
           </h2>
           <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '4px' }}>
-            PCET Central Placement Management System
+            Central Placement Management System
           </p>
         </div>
 

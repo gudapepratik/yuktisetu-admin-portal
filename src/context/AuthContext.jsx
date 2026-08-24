@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { authApi } from '../api/auth';
+import { scheduleProactiveRefresh, cancelProactiveRefresh } from '../api/client';
 
 const AuthContext = createContext(null);
 
@@ -95,6 +96,9 @@ export function AuthProvider({ children }) {
     };
 
     setUser(userObj);
+    if (data.accessTokenTtlSeconds) {
+      scheduleProactiveRefresh(data.accessTokenTtlSeconds);
+    }
     return userObj;
   };
 
@@ -107,6 +111,7 @@ export function AuthProvider({ children }) {
         console.warn('Logout notification error:', err.message);
       }
     }
+    cancelProactiveRefresh();
     localStorage.removeItem('cpms_access_token');
     localStorage.removeItem('cpms_refresh_token');
     setUser(null);
