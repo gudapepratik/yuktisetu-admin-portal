@@ -172,12 +172,64 @@ export function Institutes() {
   // Create College
   const handleCreateCollege = async (e) => {
     e.preventDefault();
+
+    // Frontend validation — do not send anything to backend
+    // until all primary contact details are provided.
+    const requiredFields = {
+      name: 'College name',
+      code: 'College code',
+      address: 'College address',
+      primaryContactName: 'Primary contact name',
+      primaryContactEmail: 'Primary contact email',
+      primaryContactPhone: 'Primary contact phone',
+    };
+
+    for (const [field, label] of Object.entries(requiredFields)) {
+      if (!collegeForm[field]?.trim()) {
+        showError(`${label} is required.`);
+        return;
+      }
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailRegex.test(collegeForm.primaryContactEmail.trim())) {
+      showError('Please enter a valid primary contact email.');
+      return;
+    }
+
+    // Basic phone validation
+    const phoneRegex = /^[0-9]{10}$/;
+
+    if (!phoneRegex.test(collegeForm.primaryContactPhone.trim())) {
+      showError('Primary contact phone must contain exactly 10 digits.');
+      return;
+    }
+
+    if (!selectedTrustId) {
+      showError('Please select a trust before creating a college.');
+      return;
+    }
+
     try {
-      const payload = { ...collegeForm, trustId: parseInt(selectedTrustId) };
+      const payload = {
+        name: collegeForm.name.trim(),
+        code: collegeForm.code.trim(),
+        address: collegeForm.address.trim(),
+        primaryContactName: collegeForm.primaryContactName.trim(),
+        primaryContactEmail: collegeForm.primaryContactEmail.trim(),
+        primaryContactPhone: collegeForm.primaryContactPhone.trim(),
+        logoUrl: collegeForm.logoUrl.trim() || null,
+        trustId: parseInt(selectedTrustId, 10),
+      };
+
       const newCollege = await adminApi.createCollege(payload);
+
       setColleges((prev) => [...prev, newCollege]);
       setSelectedCollegeId(newCollege.id);
       setIsCollegeModalOpen(false);
+
       setCollegeForm({
         name: '',
         code: '',
@@ -187,6 +239,7 @@ export function Institutes() {
         primaryContactPhone: '',
         logoUrl: '',
       });
+
       success(`College "${newCollege.name}" added to Trust.`);
     } catch (err) {
       showError(err.message || 'Failed to create college');
@@ -401,46 +454,159 @@ export function Institutes() {
         </form>
       </Modal>
 
-      <Modal isOpen={isCollegeModalOpen} onClose={() => setIsCollegeModalOpen(false)} title="Add College to Selected Trust">
+      <Modal
+          isOpen={isCollegeModalOpen}
+          onClose={() => setIsCollegeModalOpen(false)}
+          title="Add College to Selected Trust"
+      >
         <form onSubmit={handleCreateCollege}>
+          {/* College Name */}
           <div className="form-group" style={{ marginBottom: '12px' }}>
             <label className="form-label">College Name *</label>
             <input
-              type="text"
-              required
-              className="form-control"
-              placeholder="Pimpri Chinchwad College of Engineering"
-              value={collegeForm.name}
-              onChange={(e) => setCollegeForm({ ...collegeForm, name: e.target.value })}
+                type="text"
+                required
+                className="form-control"
+                placeholder="Pimpri Chinchwad College of Engineering"
+                value={collegeForm.name}
+                onChange={(e) =>
+                    setCollegeForm({
+                      ...collegeForm,
+                      name: e.target.value,
+                    })
+                }
             />
           </div>
+
+          {/* College Code */}
           <div className="form-group" style={{ marginBottom: '12px' }}>
             <label className="form-label">College Code *</label>
             <input
-              type="text"
-              required
-              className="form-control"
-              placeholder="PCCOE"
-              value={collegeForm.code}
-              onChange={(e) => setCollegeForm({ ...collegeForm, code: e.target.value })}
+                type="text"
+                required
+                className="form-control"
+                placeholder="PCCOE"
+                value={collegeForm.code}
+                onChange={(e) =>
+                    setCollegeForm({
+                      ...collegeForm,
+                      code: e.target.value,
+                    })
+                }
             />
           </div>
-          <div className="form-group" style={{ marginBottom: '18px' }}>
-            <label className="form-label">Principal / TnP Contact Email *</label>
+
+          {/* Address */}
+          <div className="form-group" style={{ marginBottom: '12px' }}>
+            <label className="form-label">College Address *</label>
+            <textarea
+                required
+                className="form-control"
+                placeholder="College address"
+                value={collegeForm.address}
+                onChange={(e) =>
+                    setCollegeForm({
+                      ...collegeForm,
+                      address: e.target.value,
+                    })
+                }
+                rows={3}
+            />
+          </div>
+
+          {/* Primary Contact Name */}
+          <div className="form-group" style={{ marginBottom: '12px' }}>
+            <label className="form-label">Primary Contact Name *</label>
             <input
-              type="email"
-              required
-              className="form-control"
-              placeholder="principal@pccoepune.org"
-              value={collegeForm.primaryContactEmail}
-              onChange={(e) => setCollegeForm({ ...collegeForm, primaryContactEmail: e.target.value })}
+                type="text"
+                required
+                className="form-control"
+                placeholder="Principal / TnP Officer"
+                value={collegeForm.primaryContactName}
+                onChange={(e) =>
+                    setCollegeForm({
+                      ...collegeForm,
+                      primaryContactName: e.target.value,
+                    })
+                }
             />
           </div>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-            <button type="button" className="btn btn-ghost" onClick={() => setIsCollegeModalOpen(false)}>
+
+          {/* Primary Contact Email */}
+          <div className="form-group" style={{ marginBottom: '12px' }}>
+            <label className="form-label">Primary Contact Email *</label>
+            <input
+                type="email"
+                required
+                className="form-control"
+                placeholder="principal@pccoepune.org"
+                value={collegeForm.primaryContactEmail}
+                onChange={(e) =>
+                    setCollegeForm({
+                      ...collegeForm,
+                      primaryContactEmail: e.target.value,
+                    })
+                }
+            />
+          </div>
+
+          {/* Primary Contact Phone */}
+          <div className="form-group" style={{ marginBottom: '12px' }}>
+            <label className="form-label">Primary Contact Phone *</label>
+            <input
+                type="tel"
+                required
+                className="form-control"
+                placeholder="9876543210"
+                value={collegeForm.primaryContactPhone}
+                onChange={(e) =>
+                    setCollegeForm({
+                      ...collegeForm,
+                      primaryContactPhone: e.target.value.replace(/\D/g, '').slice(0, 10),
+                    })
+                }
+                maxLength={10}
+                inputMode="numeric"
+            />
+          </div>
+
+          {/* Logo URL */}
+          <div className="form-group" style={{ marginBottom: '18px' }}>
+            <label className="form-label">Logo URL</label>
+            <input
+                type="url"
+                className="form-control"
+                placeholder="https://example.com/logo.png"
+                value={collegeForm.logoUrl}
+                onChange={(e) =>
+                    setCollegeForm({
+                      ...collegeForm,
+                      logoUrl: e.target.value,
+                    })
+                }
+            />
+          </div>
+
+          {/* Actions */}
+          <div
+              style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: '10px',
+              }}
+          >
+            <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => setIsCollegeModalOpen(false)}
+            >
               Cancel
             </button>
-            <button type="submit" className="btn btn-primary">
+
+            <button
+                type="submit"
+                className="btn btn-primary"
+            >
               Add College
             </button>
           </div>
@@ -466,7 +632,7 @@ export function Institutes() {
               type="text"
               required
               className="form-control"
-              placeholder="COMP"
+              placeholder="CS"
               value={deptForm.code}
               onChange={(e) => setDeptForm({ ...deptForm, code: e.target.value })}
             />
