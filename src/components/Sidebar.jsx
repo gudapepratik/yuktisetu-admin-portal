@@ -7,6 +7,8 @@ import {
   UploadCloud,
   LogOut,
   ShieldAlert,
+  Briefcase,
+  Megaphone,
 } from 'lucide-react';
 
 export function Sidebar({ activeView, setActiveView }) {
@@ -17,6 +19,14 @@ export function Sidebar({ activeView, setActiveView }) {
   const canManageInstitutes = ['TNP_SUPER_ADMIN', 'IT_ADMIN', 'TNP_COLLEGE_ADMIN'].includes(role);
   const canManageRoles = ['TNP_SUPER_ADMIN', 'IT_ADMIN', 'TNP_COLLEGE_ADMIN', 'TNP_COORDINATOR', 'HOD', 'FACULTY_DEPT_COORDINATOR'].includes(role);
   const canImportStudents = ['TNP_SUPER_ADMIN', 'IT_ADMIN', 'TNP_COLLEGE_ADMIN', 'TNP_COORDINATOR', 'HOD', 'FACULTY_DEPT_COORDINATOR'].includes(role);
+
+  // Drive posting authority runs from Super Admin down to Coordinator inclusive --
+  // HoD and below cannot post. The backend enforces this too; hiding the nav item
+  // just stops them walking into a 403.
+  const canManageDrives = ['TNP_SUPER_ADMIN', 'IT_ADMIN', 'TNP_COLLEGE_ADMIN', 'TNP_COORDINATOR'].includes(role);
+  // Reading an applicant pool reaches further down, so the drives screen itself is
+  // visible to HoDs and faculty coordinators.
+  const canViewDrives = canManageDrives || ['HOD', 'FACULTY_DEPT_COORDINATOR'].includes(role);
 
   return (
     <aside className="sidebar">
@@ -61,6 +71,28 @@ export function Sidebar({ activeView, setActiveView }) {
             <UploadCloud size={16} />
             <span>Student Import (Excel)</span>
           </div>
+        )}
+
+        {canViewDrives && (
+          <>
+            <div className="nav-section-label">Placement</div>
+            {canManageDrives && (
+              <div
+                className={`nav-item ${activeView === 'companies' ? 'active' : ''}`}
+                onClick={() => setActiveView('companies')}
+              >
+                <Briefcase size={16} />
+                <span>Companies</span>
+              </div>
+            )}
+            <div
+              className={`nav-item ${activeView === 'drives' ? 'active' : ''}`}
+              onClick={() => setActiveView('drives')}
+            >
+              <Megaphone size={16} />
+              <span>Drives</span>
+            </div>
+          </>
         )}
 
         {canManageInstitutes && (

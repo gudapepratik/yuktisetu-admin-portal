@@ -1,6 +1,11 @@
 /**
  * Centralized HTTP Client for CPMS Admin Portal
  * Handles automatic JWT injection, error normalization, token refresh, and standard HTTP verbs.
+ *
+ * Every backend response is now { success, status, message, data, error, timestamp }
+ * (YuktiSetuResponse) -- this client unwraps `.data` on success and reads
+ * `.error.code` / `.error.message` on failure, so callers keep getting the
+ * same plain DTOs/errors they always did.
  */
 
 const AUTH_BASE_URL = '/api/auth';
@@ -17,6 +22,17 @@ const processQueue = (error, token = null) => {
   failedQueue = [];
 };
 
+// Dispatched instead of a hard `window.location.href` redirect: this SPA has
+// no router and no real "/login" route (App.jsx drives view switching off
+// in-memory state), so a hard redirect previously landed on a blank/unmatched
+// URL. AuthContext listens for this and resets its user state, which routes
+// back to the Login view within the SPA.
+function notifySessionExpired() {
+  localStorage.removeItem('cpms_access_token');
+  localStorage.removeItem('cpms_refresh_token');
+  window.dispatchEvent(new CustomEvent('cpms:auth-expired'));
+}
+
 const performRefresh = async () => {
   const refreshToken = localStorage.getItem('cpms_refresh_token');
   if (!refreshToken) throw new Error('No refresh token');
@@ -27,19 +43,19 @@ const performRefresh = async () => {
     body: JSON.stringify({ refreshToken }),
   });
 
-  if (!response.ok) {
-    const error = new Error('Token refresh failed');
+  const envelope = await response.json().catch(() => null);
+  if (!response.ok || !envelope?.data?.accessToken) {
+    const error = new Error(envelope?.error?.message || envelope?.message || 'Token refresh failed');
     error.status = response.status;
     throw error;
   }
 
-  const data = await response.json();
-  localStorage.setItem('cpms_access_token', data.accessToken);
-  if (data.refreshToken) {
-    localStorage.setItem('cpms_refresh_token', data.refreshToken);
+  localStorage.setItem('cpms_access_token', envelope.data.accessToken);
+  if (envelope.data.refreshToken) {
+    localStorage.setItem('cpms_refresh_token', envelope.data.refreshToken);
   }
 
-  return data.accessToken;
+  return envelope.data.accessToken;
 };
 
 export const scheduleProactiveRefresh = (expiresInSeconds) => {
@@ -75,9 +91,7 @@ const refreshAccessToken = async () => {
     return newAccessToken;
   } catch (error) {
     processQueue(error, null);
-    localStorage.removeItem('cpms_access_token');
-    localStorage.removeItem('cpms_refresh_token');
-    window.location.href = '/login';
+    notifySessionExpired();
     throw error;
   } finally {
     isRefreshing = false;
@@ -103,7 +117,7 @@ export async function apiRequest(endpoint, options = {}) {
 
     if (response.status === 401 && !endpoint.includes('/login') && !endpoint.includes('/refresh') && !endpoint.includes('/accept-invite')) {
       const newAccessToken = await refreshAccessToken();
-      
+
       const retryConfig = {
         ...config,
         headers: {
@@ -114,27 +128,34 @@ export async function apiRequest(endpoint, options = {}) {
       response = await fetch(endpoint, retryConfig);
     }
 
+    // Defensive fallback -- no backend endpoint returns 204 anymore (every
+    // response now carries a YuktiSetuResponse body), but keep this in case
+    // something upstream ever does.
     if (response.status === 204) {
       return null;
     }
 
     const contentType = response.headers.get('content-type');
     const isJson = contentType && contentType.includes('application/json');
-    const data = isJson ? await response.json() : await response.text();
+    const body = isJson ? await response.json() : await response.text();
+
+    const envelope = body && typeof body === 'object' && 'success' in body ? body : null;
 
     if (!response.ok) {
       const errorMessage =
-        (typeof data === 'object' && (data.message || data.error || data.code)) ||
+        envelope?.error?.message ||
+        envelope?.message ||
+        (typeof body === 'object' && (body.message || body.error)) ||
         `Request failed with status ${response.status}`;
 
       const error = new Error(errorMessage);
       error.status = response.status;
-      error.code = data?.code;
-      error.payload = data;
+      error.code = envelope?.error?.code;
+      error.payload = body;
       throw error;
     }
 
-    return data;
+    return envelope ? envelope.data : body;
   } catch (err) {
     if (err.status === 401 && !endpoint.includes('/login') && !endpoint.includes('/refresh') && !endpoint.includes('/accept-invite')) {
       console.warn('Session expired or unauthorized request:', endpoint);

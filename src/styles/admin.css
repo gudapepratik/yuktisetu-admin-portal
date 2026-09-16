@@ -636,6 +636,17 @@ textarea.form-control {
   max-width: 540px;
   box-shadow: var(--shadow-lg);
   overflow: hidden;
+  /* Cap the card to the viewport and let the body scroll inside it. Without
+     this a long form simply runs off the bottom of a 13" screen, taking the
+     submit button with it. */
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 40px);
+}
+
+/* Wide variant for forms with enough fields to warrant two columns. */
+.modal-card.modal-wide {
+  max-width: 760px;
 }
 
 .modal-header {
@@ -648,6 +659,47 @@ textarea.form-control {
 
 .modal-body {
   padding: 22px;
+  /* min-height:0 is what actually lets a flex child shrink and scroll -- without
+     it the body keeps its full content height and overflows the capped card. */
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Header and footer stay put while the body scrolls, so the submit button is
+   always reachable. */
+.modal-header,
+.modal-footer {
+  flex-shrink: 0;
+}
+
+/* A footer inside a scrolling body still needs to sit clear of the last field. */
+.modal-body > form > .modal-footer {
+  position: sticky;
+  bottom: -22px;
+  background: var(--bg-surface);
+  margin: 12px -22px -22px;
+  padding: 14px 22px;
+}
+
+/* Inside a modal the columns have less room than on a full page, so let them
+   pair up earlier rather than collapsing to one tall column. */
+/* Exactly two columns inside a modal. auto-fit with a min width would give
+   three in the wide variant, which crams the fields; the single-column fallback
+   below is for genuinely narrow viewports. */
+.modal-body .form-grid {
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 16px;
+}
+
+@media (max-width: 560px) {
+  .modal-body .form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.modal-body .form-group {
+  margin-bottom: 0;
 }
 
 .modal-footer {

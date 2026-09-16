@@ -33,24 +33,26 @@ export function UserManagement() {
   useEffect(() => {
     async function loadInstitutes() {
       try {
-        const trusts = await adminApi.listTrusts().catch(() => []);
-        const trustId = trusts[0]?.id || 1;
-        const cols = await adminApi.listColleges(trustId).catch(() => []);
+        const trusts = await adminApi.listTrusts();
+        const trustId = trusts?.[0]?.id;
+        if (!trustId) {
+          setColleges([]);
+          return;
+        }
+        const cols = await adminApi.listColleges(trustId);
         if (cols && cols.length > 0) {
           setColleges(cols);
           setForm((prev) => ({ ...prev, collegeId: cols[0].id }));
         } else {
-          const fallbackCols = [{ id: 2, name: 'Pimpri Chinchwad College of Engineering', code: 'PCCOE' }];
-          setColleges(fallbackCols);
-          setForm((prev) => ({ ...prev, collegeId: 2 }));
+          setColleges([]);
         }
-      } catch {
-        const fallbackCols = [{ id: 2, name: 'Pimpri Chinchwad College of Engineering', code: 'PCCOE' }];
-        setColleges(fallbackCols);
-        setForm((prev) => ({ ...prev, collegeId: 2 }));
+      } catch (err) {
+        setColleges([]);
+        showError(err.message || 'Failed to load colleges');
       }
     }
     loadInstitutes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Load Departments when College changes
@@ -62,29 +64,34 @@ export function UserManagement() {
             setDepartments(depts);
             setForm((prev) => ({ ...prev, deptId: depts[0].id }));
           } else {
-            const fallbackDepts = [
-              { id: 5, name: 'Computer Engineering', code: 'COMP' },
-              { id: 6, name: 'Information Technology', code: 'IT' },
-            ];
-            setDepartments(fallbackDepts);
-            setForm((prev) => ({ ...prev, deptId: 5 }));
+            setDepartments([]);
           }
         })
-        .catch(() => {
-          const fallbackDepts = [
-            { id: 5, name: 'Computer Engineering', code: 'COMP' },
-            { id: 6, name: 'Information Technology', code: 'IT' },
-          ];
-          setDepartments(fallbackDepts);
-          setForm((prev) => ({ ...prev, deptId: 5 }));
+        .catch((err) => {
+          setDepartments([]);
+          showError(err.message || 'Failed to load departments');
         });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.collegeId]);
 
   const selectedRoleConfig = allowedRoles.find((r) => r.value === form.role) || allowedRoles[0];
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // No fabricated fallback IDs here -- if a required scope selection is
+    // missing, that's a real "you haven't picked a college/department yet"
+    // state, not something to paper over with a guessed ID.
+    if (selectedRoleConfig?.collegeScoped && !form.collegeId) {
+      showError('Select an affiliated college before provisioning this role.');
+      return;
+    }
+    if (selectedRoleConfig?.deptScoped && !form.deptId) {
+      showError('Select an academic department before provisioning this role.');
+      return;
+    }
+
     setLoading(true);
     setLastCreated(null);
 
@@ -94,12 +101,8 @@ export function UserManagement() {
       firstName: form.firstName.trim(),
       lastName: form.lastName ? form.lastName.trim() : '',
       role: form.role,
-      collegeId: selectedRoleConfig?.collegeScoped
-        ? parseInt(form.collegeId) || colleges[0]?.id || 2
-        : null,
-      deptId: selectedRoleConfig?.deptScoped
-        ? parseInt(form.deptId) || departments[0]?.id || 5
-        : null,
+      collegeId: selectedRoleConfig?.collegeScoped ? parseInt(form.collegeId, 10) : null,
+      deptId: selectedRoleConfig?.deptScoped ? parseInt(form.deptId, 10) : null,
     };
 
     try {
