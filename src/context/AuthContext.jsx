@@ -47,11 +47,29 @@ export function AuthProvider({ children }) {
           token,
           refreshToken,
         });
+        // Session restored from localStorage (e.g. page refresh) also needs
+        // its proactive refresh scheduled -- previously this only happened
+        // on a fresh login, so a restored session relied entirely on the
+        // reactive 401 path until the next full login.
+        scheduleProactiveRefresh(payload.exp - Math.floor(Date.now() / 1000));
       } else {
         logout();
       }
     }
     setLoading(false);
+  }, []);
+
+  // A refresh attempt (proactive or reactive) exhausted the refresh token --
+  // api/client.js dispatches this instead of forcing a window.location
+  // redirect (this SPA has no router / no real "/login" route). Reset local
+  // user state so the app falls back to the Login view.
+  useEffect(() => {
+    const handleExpired = () => {
+      cancelProactiveRefresh();
+      setUser(null);
+    };
+    window.addEventListener('cpms:auth-expired', handleExpired);
+    return () => window.removeEventListener('cpms:auth-expired', handleExpired);
   }, []);
 
   const login = async (email, password) => {

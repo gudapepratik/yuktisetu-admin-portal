@@ -56,30 +56,13 @@ export function Institutes() {
         setTrusts(data);
         setSelectedTrustId(data[0].id);
       } else {
-        const fallback = [
-          {
-            id: 1,
-            name: 'Pimpri Chinchwad Education Trust',
-            code: 'PCET',
-            primaryContactEmail: 'trust@pcet.org.in',
-            status: 'ACTIVE',
-          },
-        ];
-        setTrusts(fallback);
-        setSelectedTrustId(1);
+        setTrusts([]);
+        setSelectedTrustId(null);
       }
-    } catch {
-      const fallback = [
-        {
-          id: 1,
-          name: 'Pimpri Chinchwad Education Trust',
-          code: 'PCET',
-          primaryContactEmail: 'trust@pcet.org.in',
-          status: 'ACTIVE',
-        },
-      ];
-      setTrusts(fallback);
-      setSelectedTrustId(1);
+    } catch (err) {
+      setTrusts([]);
+      setSelectedTrustId(null);
+      showError(err.message || 'Failed to load trusts');
     } finally {
       setLoading(false);
     }
@@ -95,33 +78,14 @@ export function Institutes() {
             setColleges(data);
             setSelectedCollegeId(data[0].id);
           } else {
-            const fallback = [
-              {
-                id: 2,
-                trustId: selectedTrustId,
-                name: 'Pimpri Chinchwad College of Engineering',
-                code: 'PCCOE',
-                primaryContactEmail: 'principal@pccoepune.org',
-                status: 'ACTIVE',
-              },
-            ];
-            setColleges(fallback);
-            setSelectedCollegeId(2);
+            setColleges([]);
+            setSelectedCollegeId(null);
           }
         })
-        .catch(() => {
-          const fallback = [
-            {
-              id: 2,
-              trustId: selectedTrustId,
-              name: 'Pimpri Chinchwad College of Engineering',
-              code: 'PCCOE',
-              primaryContactEmail: 'principal@pccoepune.org',
-              status: 'ACTIVE',
-            },
-          ];
-          setColleges(fallback);
-          setSelectedCollegeId(2);
+        .catch((err) => {
+          setColleges([]);
+          setSelectedCollegeId(null);
+          showError(err.message || 'Failed to load colleges');
         });
     }
   }, [selectedTrustId]);
@@ -132,24 +96,11 @@ export function Institutes() {
       adminApi
         .listDepartments(selectedCollegeId)
         .then((data) => {
-          if (data && data.length > 0) {
-            setDepartments(data);
-          } else {
-            const fallback = [
-              { id: 5, collegeId: selectedCollegeId, name: 'Computer Engineering', code: 'COMP', status: 'ACTIVE' },
-              { id: 6, collegeId: selectedCollegeId, name: 'Information Technology', code: 'IT', status: 'ACTIVE' },
-              { id: 7, collegeId: selectedCollegeId, name: 'Mechanical Engineering', code: 'MECH', status: 'ACTIVE' },
-            ];
-            setDepartments(fallback);
-          }
+          setDepartments(data && data.length > 0 ? data : []);
         })
-        .catch(() => {
-          const fallback = [
-            { id: 5, collegeId: selectedCollegeId, name: 'Computer Engineering', code: 'COMP', status: 'ACTIVE' },
-            { id: 6, collegeId: selectedCollegeId, name: 'Information Technology', code: 'IT', status: 'ACTIVE' },
-            { id: 7, collegeId: selectedCollegeId, name: 'Mechanical Engineering', code: 'MECH', status: 'ACTIVE' },
-          ];
-          setDepartments(fallback);
+        .catch((err) => {
+          setDepartments([]);
+          showError(err.message || 'Failed to load departments');
         });
     }
   }, [selectedCollegeId]);

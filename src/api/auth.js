@@ -43,7 +43,21 @@ export const authApi = {
       body: JSON.stringify(payload),
     }),
 
-  // IT Admin Hard Delete
+  // Soft Delete — the ordinary, reversible delete. This is what every admin
+  // screen should call. The account is flagged deleted and hidden from active
+  // views, but the row and its history stay. Requires the user's roles to be
+  // deactivated first.
+  softDeleteUser: (targetUserId) =>
+    apiRequest('/api/auth/roles/soft-delete', {
+      method: 'POST',
+      body: JSON.stringify({ targetUserId }),
+    }),
+
+  // IT Admin Hard Delete — PERMANENT row removal, not reversible. Only
+  // succeeds for an account that is already soft-deleted and has nothing
+  // referencing it; otherwise the API refuses with CASCADE_BLOCKED listing
+  // what still points at the user. Do not wire this to a generic "Delete"
+  // button — use softDeleteUser above for that.
   hardDeleteUser: (targetUserId) =>
     apiRequest('/api/auth/roles/hard-delete', {
       method: 'POST',
