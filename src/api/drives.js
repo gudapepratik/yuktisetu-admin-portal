@@ -57,6 +57,18 @@ export const drivesApi = {
 
   getPosting: (id) => apiRequest(`/api/admin/postings/${id}`),
 
+  /**
+   * Reads pasted JD text into drive fields. Writes nothing and takes no posting
+   * id -- it runs before a drive exists, so a coordinator can paste, look, fix
+   * the text and paste again at no cost.
+   */
+  parseJd: (text) =>
+    apiRequest('/api/admin/postings/parse-jd', {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    }),
+
+
   createPosting: (data) =>
     apiRequest('/api/admin/postings', {
       method: 'POST',
@@ -79,6 +91,22 @@ export const drivesApi = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+
+  /**
+   * Uploads the JD itself and registers it in one synchronous call, returning
+   * the stored key. The drafter attaches a file rather than pasting a storage
+   * key by hand -- a mistyped key registered cleanly and only surfaced as a
+   * dead JD link after the drive was published to the whole cohort.
+   */
+  uploadDocument: (id, file, docType = 'JD', primary = true) => {
+    const body = new FormData();
+    body.append('file', file);
+    const query = new URLSearchParams({ docType, primary: String(primary) });
+    return apiRequest(`/api/admin/postings/${id}/documents/upload?${query.toString()}`, {
+      method: 'POST',
+      body,
+    });
+  },
 
   listDocuments: (id) => apiRequest(`/api/admin/postings/${id}/documents`),
 

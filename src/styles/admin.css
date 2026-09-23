@@ -628,6 +628,17 @@ textarea.form-control {
   padding: 20px;
 }
 
+/*
+ * A modal opened from inside another modal. Every .modal-backdrop shares one
+ * z-index, so two of them stack purely by DOM order -- which made the JD import
+ * render *behind* the drive form that opened it, invisible and unreachable
+ * without cancelling the drive first. Raising it explicitly means the stacking
+ * no longer depends on where the component happens to sit in the JSX.
+ */
+.modal-backdrop-elevated {
+  z-index: 120;
+}
+
 .modal-card {
   background: var(--bg-surface);
   border: 1px solid var(--border-strong);

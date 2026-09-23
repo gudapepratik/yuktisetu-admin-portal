@@ -7,7 +7,9 @@ import { POSTING_STATUS_STYLE, formatInstant } from './Drives';
 import {
   ArrowLeft, FileText, Target, SlidersHorizontal, Repeat, Rocket, Users,
   Plus, Trash2, CheckCircle2, Circle, RefreshCw, AlertTriangle, Ban,
+  Upload, Download, ExternalLink,
 } from 'lucide-react';
+import { exportApplicants } from '../utils/applicantExport';
 
 const TABS = [
   { id: 'jd', label: 'JD document', icon: FileText },
@@ -16,6 +18,18 @@ const TABS = [
   { id: 'policy', label: 'Re-application', icon: Repeat },
   { id: 'publish', label: 'Publish', icon: Rocket },
   { id: 'pool', label: 'Applicants', icon: Users },
+];
+
+/**
+ * The two cuts the TnP actually exports. APPLIED is the raw pool; IN_REVIEW is
+ * the sealed pool handed to shortlisting, which is what a company asks for.
+ */
+const POOL_FILTERS = [
+  { value: '', label: 'Everyone' },
+  { value: 'APPLIED', label: 'Applied' },
+  { value: 'IN_REVIEW', label: 'Shortlisted' },
+  { value: 'DISQUALIFIED', label: 'Disqualified' },
+  { value: 'WITHDRAWN', label: 'Withdrawn' },
 ];
 
 const STANCES = [
@@ -86,7 +100,10 @@ export function DriveBuilder({ postingId, onBack }) {
   const [runs, setRuns] = useState([]);
   const [busy, setBusy] = useState(false);
 
-  const [docForm, setDocForm] = useState({ fileName: '', storageKey: '' });
+  const [poolFilter, setPoolFilter] = useState('');
+  const [exporting, setExporting] = useState(false);
+  const [jdFile, setJdFile] = useState(null);
+
   const [cancelReason, setCancelReason] = useState('');
   const [isCancelOpen, setIsCancelOpen] = useState(false);
 
@@ -176,10 +193,10 @@ export function DriveBuilder({ postingId, onBack }) {
     }
   };
 
-  const loadPool = async () => {
+  const loadPool = async (status = poolFilter) => {
     try {
       const [page, countMap, runList] = await Promise.all([
-        drivesApi.listApplicants(postingId),
+        drivesApi.listApplicants(postingId, { status: status || undefined, size: 200 }),
         drivesApi.applicantCounts(postingId).catch(() => ({})),
         drivesApi.listEligibilityRuns(postingId).catch(() => []),
       ]);
@@ -191,28 +208,72 @@ export function DriveBuilder({ postingId, onBack }) {
     }
   };
 
-  useEffect(() => { if (tab === 'pool') loadPool(); }, [tab]);
+  useEffect(() => { if (tab === 'pool') loadPool(); }, [tab, poolFilter]);
 
   // ---------------- actions ----------------
 
-  const addDocument = async (e) => {
-    e.preventDefault();
+  /**
+   * Uploads the JD and registers it in one call. The bytes go up, the storage key
+   * and a public URL come straight back -- the drafter never sees a key, never
+   * pastes one, and cannot attach a document that does not exist.
+   */
+  const uploadJd = async () => {
+    if (!jdFile) return;
     setBusy(true);
     try {
-      await drivesApi.addDocument(postingId, {
-        docType: 'JD',
-        fileName: docForm.fileName,
-        storageKey: docForm.storageKey,
-        contentType: 'application/pdf',
-        primary: documents.length === 0,
-      });
-      setDocForm({ fileName: '', storageKey: '' });
+      await drivesApi.uploadDocument(postingId, jdFile, 'JD', documents.length === 0);
+      setJdFile(null);
       setDocuments(await drivesApi.listDocuments(postingId));
-      success('JD attached.');
+      success('JD uploaded and attached.');
     } catch (err) {
-      showError(err.message || 'Could not attach the document');
+      showError(err.message || 'Could not upload the JD');
     } finally {
       setBusy(false);
+    }
+  };
+
+  /**
+   * Exports the pool the filter is showing.
+   *
+   * Pages through the whole set rather than exporting what is on screen: the
+   * table is capped, and a sheet that silently stopped at the cap would send a
+   * company a truncated shortlist -- a failure nobody would catch until a
+   * student asked why they were never called.
+   */
+  const downloadPool = async () => {
+    setExporting(true);
+    try {
+      const all = [];
+      for (let page = 0; ; page += 1) {
+        const result = await drivesApi.listApplicants(postingId, {
+          status: poolFilter || undefined, page, size: 200,
+        });
+        const batch = result?.content || [];
+        all.push(...batch);
+        if (batch.length < 200 || result?.last || page > 50) break;
+      }
+
+      if (all.length === 0) {
+        info('Nothing to export for this filter.');
+        return;
+      }
+
+      const label = POOL_FILTERS.find((f) => f.value === poolFilter)?.label || 'Applicants';
+      const { rows, withResume } = exportApplicants(all, {
+        companyName: posting?.companyName,
+        postingCode: posting?.postingCode,
+        statusLabel: label,
+      });
+
+      success(
+        withResume === rows
+          ? `${rows} student${rows === 1 ? '' : 's'} exported, all with resumes.`
+          : `${rows} exported — ${rows - withResume} without a resume.`,
+      );
+    } catch (err) {
+      showError(err.message || 'Could not export the applicant pool');
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -388,19 +449,27 @@ export function DriveBuilder({ postingId, onBack }) {
             <div className="panel-title">JD document</div>
           </div>
           <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '14px' }}>
-            The file itself is uploaded to object storage; this records the key. Publishing refuses a
-            drive with no JD attached — students must be able to read what they are applying for.
+            Upload the JD and it is stored and attached in one step. Publishing refuses a drive with
+            no JD attached — students must be able to read what they are applying for.
           </p>
 
           {documents.length > 0 && (
             <div className="table-wrapper" style={{ marginBottom: '14px' }}>
               <table className="data-table">
-                <thead><tr><th>File</th><th>Type</th><th>Storage key</th></tr></thead>
+                <thead><tr><th>File</th><th>Type</th><th>Link</th><th>Storage key</th></tr></thead>
                 <tbody>
                   {documents.map((d) => (
                     <tr key={d.id}>
                       <td>{d.fileName}</td>
                       <td>{d.docType}</td>
+                      <td>
+                        {d.url
+                          ? <a href={d.url} target="_blank" rel="noreferrer"
+                               style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}>
+                              Open <ExternalLink size={11} />
+                            </a>
+                          : <span style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>—</span>}
+                      </td>
                       <td style={{ fontFamily: 'var(--font-mono)', fontSize: '11.5px' }}>{d.storageKey}</td>
                     </tr>
                   ))}
@@ -410,25 +479,23 @@ export function DriveBuilder({ postingId, onBack }) {
           )}
 
           {editable && (
-            <form onSubmit={addDocument}>
-              <div className="form-grid">
-                <div className="form-group">
-                  <label className="form-label">File name *</label>
-                  <input className="form-control" required placeholder="infosys-se-jd.pdf"
-                         value={docForm.fileName}
-                         onChange={(e) => setDocForm({ ...docForm, fileName: e.target.value })} />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Storage key *</label>
-                  <input className="form-control" required placeholder="jd/2026/infosys-se.pdf"
-                         value={docForm.storageKey}
-                         onChange={(e) => setDocForm({ ...docForm, storageKey: e.target.value })} />
-                </div>
-              </div>
-              <button className="btn btn-primary btn-sm" type="submit" disabled={busy}>
-                <Plus size={12} /> Attach JD
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              <input
+                type="file"
+                accept=".pdf,.doc,.docx"
+                className="form-control"
+                style={{ maxWidth: '340px' }}
+                onChange={(e) => setJdFile(e.target.files?.[0] || null)}
+              />
+              <button className="btn btn-primary btn-sm" onClick={uploadJd} disabled={busy || !jdFile}>
+                <Upload size={12} /> {busy ? 'Uploading...' : 'Upload JD'}
               </button>
-            </form>
+              {jdFile && (
+                <span style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
+                  {jdFile.name} · {(jdFile.size / 1024).toFixed(0)} KB
+                </span>
+              )}
+            </div>
           )}
         </div>
       )}
@@ -789,16 +856,32 @@ export function DriveBuilder({ postingId, onBack }) {
                   <span key={k} className="badge badge-pending" style={{ fontSize: '10px' }}>{k}: {v}</span>
                 ))}
               </div>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <select
+                  className="form-control"
+                  style={{ width: 'auto', fontSize: '12px', padding: '5px 8px' }}
+                  value={poolFilter}
+                  onChange={(e) => setPoolFilter(e.target.value)}
+                >
+                  {POOL_FILTERS.map((f) => (
+                    <option key={f.value} value={f.value}>{f.label}</option>
+                  ))}
+                </select>
+                <button className="btn btn-secondary btn-sm" onClick={downloadPool}
+                        disabled={exporting || applicants.length === 0}>
+                  <Download size={12} /> {exporting ? 'Preparing...' : 'Export to Excel'}
+                </button>
+              </div>
             </div>
             {applicants.length === 0 ? (
               <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12.5px' }}>
-                Nobody has applied yet.
+                {poolFilter ? 'Nobody in this category.' : 'Nobody has applied yet.'}
               </div>
             ) : (
               <div className="table-wrapper">
                 <table className="data-table">
                   <thead>
-                    <tr><th>Student</th><th>Email</th><th>Batch</th><th>CGPA</th><th>Backlogs</th><th>Source</th><th>Status</th></tr>
+                    <tr><th>Student</th><th>Email</th><th>Batch</th><th>CGPA</th><th>Backlogs</th><th>Resume</th><th>Source</th><th>Status</th></tr>
                   </thead>
                   <tbody>
                     {applicants.map((a) => (
@@ -808,6 +891,14 @@ export function DriveBuilder({ postingId, onBack }) {
                         <td style={{ fontFamily: 'var(--font-mono)' }}>{a.batchYear ?? '—'}</td>
                         <td style={{ fontFamily: 'var(--font-mono)' }}>{a.cgpa ?? '—'}</td>
                         <td style={{ fontFamily: 'var(--font-mono)' }}>{a.activeBacklogs ?? '—'}</td>
+                        <td>
+                          {a.resumeUrl
+                            ? <a href={a.resumeUrl} target="_blank" rel="noreferrer" title={a.resumeFileName}
+                                 style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11.5px' }}>
+                                Open <ExternalLink size={11} />
+                              </a>
+                            : <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Not submitted</span>}
+                        </td>
                         <td style={{ fontSize: '11px' }}>{a.source?.replaceAll('_', ' ')}</td>
                         <td><span className="badge badge-active">{a.status}</span></td>
                       </tr>
